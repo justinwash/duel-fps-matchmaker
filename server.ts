@@ -6,7 +6,6 @@ import QueueController from './controllers/QueueController';
 const qController = new QueueController();
 
 qController.startTimer();
-qController.createNewServer();
 
 app.get('/', (req, res) => {
   res.json('GET on / not allowed');

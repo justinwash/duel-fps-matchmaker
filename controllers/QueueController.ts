@@ -223,15 +223,14 @@ export default class QueueController {
       return;
     }
 
-    if (player && player.status == 'match found') {
+    if ((player && player.status == 'match found') || player.status == 'server started') {
       res.json({
         request: 'getQueueStatus',
         success: true,
-        message: `match found`,
+        message: player.status,
         data: {
           player: {
-            id: player.id,
-            status: player.status,
+            ...player,
             timeout: this.getTimeUntilDisconnect(player.timeout),
           },
         },
@@ -278,6 +277,22 @@ export default class QueueController {
 
             this._awsService.createNewServer((serverId) => {
               console.log('Created new server via _awsService: ', serverId);
+              player1.status = 'server started';
+              player2.status = 'server started';
+
+              var newGame: Game = {
+                id: uuid(),
+                playerIds: [player1.id, player2.id],
+                serverId: serverId,
+                serverAddress: this._awsService.serverTasks.get(serverId).publicIp,
+                status: 'running',
+              };
+
+              console.log('Created game for players: ', newGame.playerIds);
+              console.log('Game info: ', newGame);
+
+              player1.game = newGame;
+              player2.game = newGame;
             });
           }
         });

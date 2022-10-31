@@ -56,7 +56,6 @@ export default class AWSService {
               serverTask.spinUpSecs += 5;
               serverTask.lastResponse = taskInfoResponse;
               this.serverTasks.set(serverId, serverTask);
-              console.log('Still waiting for server ', serverId, ' to start...');
             } else if (taskInfoResponse.tasks[0]?.lastStatus === 'RUNNING') {
               clearInterval(statusInterval);
 
