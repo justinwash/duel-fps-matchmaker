@@ -319,6 +319,7 @@ export default class QueueController {
                       }
                     })
                     .catch((err) => {
+                      clearInterval(statusInterval);
                       console.log(err);
                     });
                 }, 5000);
