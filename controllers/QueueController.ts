@@ -1,32 +1,10 @@
 import Player from '../models/Player';
 import Game from '../models/Game';
 import { v4 as uuid } from 'uuid';
-
-import { ECSClient, RunTaskCommand, DescribeTasksCommand } from '@aws-sdk/client-ecs';
-
-const ecsClient = new ECSClient({ region: 'us-east-1' });
-const createServerCommand = new RunTaskCommand({
-  taskDefinition: 'duel-fps:11',
-  cluster: 'duel-fps',
-  launchType: 'FARGATE',
-  networkConfiguration: {
-    awsvpcConfiguration: {
-      subnets: ['subnet-b092c0d7', 'subnet-6feab533', 'subnet-3cc89112', 'subnet-7535544b', 'subnet-63e1f56c', 'subnet-9508ead8'],
-      securityGroups: ['sg-6557d93f'],
-      assignPublicIp: 'ENABLED',
-    },
-  },
-});
-const getTaskInfoCommand = (taskId) => {
-  return new DescribeTasksCommand({
-    cluster: 'duel-fps',
-    tasks: [taskId],
-  });
-};
-
-var spinUpSecs = 0;
+import AWSService from '../services/AWSService';
 
 export default class QueueController {
+  _awsService = new AWSService();
   players: Map<uuid, Player> = new Map();
   queue: uuid[] = [];
   games: Game[] = [];
@@ -298,35 +276,9 @@ export default class QueueController {
             player2.status = 'match found';
             this.queue.splice(index, 2);
 
-            ecsClient
-              .send(createServerCommand)
-              .then((res) => {
-                // send metadata to the clients when the server starts
-                console.log('Spinning up a new server instance!');
-                spinUpSecs = 0;
-
-                var statusInterval = setInterval(() => {
-                  ecsClient
-                    .send(getTaskInfoCommand(res.tasks[0].taskArn))
-                    .then((res) => {
-                      if (res.tasks[0]?.lastStatus !== 'RUNNING') {
-                        spinUpSecs += 5;
-                        console.log('Still waiting...');
-                      } else if (res.tasks[0]?.lastStatus === 'RUNNING') {
-                        clearInterval(statusInterval);
-                        console.log('Server ready!', res);
-                        console.log('Spin up time: ', spinUpSecs, ' seconds');
-                      }
-                    })
-                    .catch((err) => {
-                      clearInterval(statusInterval);
-                      console.log(err);
-                    });
-                }, 5000);
-              })
-              .catch((err) => {
-                console.log(err);
-              });
+            this._awsService.createNewServer((serverId) => {
+              console.log('Created new server via _awsService: ', serverId);
+            });
           }
         });
       } else {

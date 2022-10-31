@@ -6,6 +6,7 @@ import QueueController from './controllers/QueueController';
 const qController = new QueueController();
 
 qController.startTimer();
+qController.createNewServer();
 
 app.get('/', (req, res) => {
   res.json('GET on / not allowed');
@@ -74,6 +75,4 @@ app.get('/getQueueStatus', (req, res) => {
   }
 });
 
-app.listen(process.env.PORT || port, () =>
-  console.log(`Matchmaking server listening on port ${process.env.PORT || port}`)
-);
+app.listen(process.env.PORT || port, () => console.log(`Matchmaking server listening on port ${process.env.PORT || port}`));
