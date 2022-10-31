@@ -2,6 +2,8 @@ import { v4 as uuid } from 'uuid';
 
 export default interface Game {
   id: string;
-  player_ids: uuid[];
+  playerIds: uuid[];
+  serverMetadata: Object;
+  startTime: number;
   status: string;
 }

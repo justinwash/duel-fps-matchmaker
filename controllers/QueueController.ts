@@ -2,6 +2,22 @@ import Player from '../models/Player';
 import Game from '../models/Game';
 import { v4 as uuid } from 'uuid';
 
+import { ECSClient, RunTaskCommand } from '@aws-sdk/client-ecs';
+
+const ecsClient = new ECSClient({ region: 'us-west-2' });
+const createServerCommand = new RunTaskCommand({
+  taskDefinition: 'duel-fps',
+  cluster: 'duel-fps',
+  launchType: 'FARGATE',
+  networkConfiguration: {
+    awsvpcConfiguration: {
+      subnets: ['subnet-b092c0d7', 'subnet-6feab533', 'subnet-3cc89112', 'subnet-7535544b', 'subnet-63e1f56c', 'subnet-9508ead8'],
+      securityGroups: ['sg-6557d93f'],
+      assignPublicIp: 'ENABLED',
+    },
+  },
+});
+
 export default class QueueController {
   players: Map<uuid, Player> = new Map();
   queue: uuid[] = [];
