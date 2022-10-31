@@ -2,11 +2,11 @@ import Player from '../models/Player';
 import Game from '../models/Game';
 import { v4 as uuid } from 'uuid';
 
-import { ECSClient, RunTaskCommand } from '@aws-sdk/client-ecs';
+import { ECSClient, RunTaskCommand, DescribeTasksCommand } from '@aws-sdk/client-ecs';
 
-const ecsClient = new ECSClient({ region: 'us-west-2' });
+const ecsClient = new ECSClient({ region: 'us-east-1' });
 const createServerCommand = new RunTaskCommand({
-  taskDefinition: 'duel-fps',
+  taskDefinition: 'duel-fps:11',
   cluster: 'duel-fps',
   launchType: 'FARGATE',
   networkConfiguration: {
@@ -17,6 +17,14 @@ const createServerCommand = new RunTaskCommand({
     },
   },
 });
+const getTaskInfoCommand = (taskId) => {
+  return new DescribeTasksCommand({
+    cluster: 'duel-fps',
+    tasks: [taskId],
+  });
+};
+
+var spinUpSecs = 0;
 
 export default class QueueController {
   players: Map<uuid, Player> = new Map();
@@ -289,6 +297,35 @@ export default class QueueController {
             player1.status = 'match found';
             player2.status = 'match found';
             this.queue.splice(index, 2);
+
+            ecsClient
+              .send(createServerCommand)
+              .then((res) => {
+                // send metadata to the clients when the server starts
+                console.log('Spinning up a new server instance!');
+                spinUpSecs = 0;
+
+                var statusInterval = setInterval(() => {
+                  ecsClient
+                    .send(getTaskInfoCommand(res.tasks[0].taskArn))
+                    .then((res) => {
+                      if (res.tasks[0]?.lastStatus !== 'RUNNING') {
+                        spinUpSecs += 5;
+                        console.log('Still waiting...');
+                      } else if (res.tasks[0]?.lastStatus === 'RUNNING') {
+                        clearInterval(statusInterval);
+                        console.log('Server ready!', res);
+                        console.log('Spin up time: ', spinUpSecs, ' seconds');
+                      }
+                    })
+                    .catch((err) => {
+                      console.log(err);
+                    });
+                }, 5000);
+              })
+              .catch((err) => {
+                console.log(err);
+              });
           }
         });
       } else {
