@@ -1,4 +1,4 @@
-import { ECSClient, RunTaskCommand, DescribeTasksCommand, UpdateClusterCommandInput } from '@aws-sdk/client-ecs';
+import { ECSClient, RunTaskCommand, DescribeTasksCommand, StopTaskCommand } from '@aws-sdk/client-ecs';
 import { EC2Client, DescribeNetworkInterfacesCommand } from '@aws-sdk/client-ec2';
 
 import { v4 as uuid } from 'uuid';
@@ -9,18 +9,32 @@ export default class AWSService {
 
   public serverTasks: Map<uuid, any> = new Map();
 
-  private createServerCommand = new RunTaskCommand({
-    taskDefinition: 'duel-fps:11',
-    cluster: 'duel-fps',
-    launchType: 'FARGATE',
-    networkConfiguration: {
-      awsvpcConfiguration: {
-        subnets: ['subnet-b092c0d7', 'subnet-6feab533', 'subnet-3cc89112', 'subnet-7535544b', 'subnet-63e1f56c', 'subnet-9508ead8'],
-        securityGroups: ['sg-6557d93f'],
-        assignPublicIp: 'ENABLED',
+  private createServerCommand = (serverId) =>
+    new RunTaskCommand({
+      taskDefinition: 'duel-fps:11',
+      cluster: 'duel-fps',
+      launchType: 'FARGATE',
+      networkConfiguration: {
+        awsvpcConfiguration: {
+          subnets: ['subnet-b092c0d7', 'subnet-6feab533', 'subnet-3cc89112', 'subnet-7535544b', 'subnet-63e1f56c', 'subnet-9508ead8'],
+          securityGroups: ['sg-6557d93f'],
+          assignPublicIp: 'ENABLED',
+        },
       },
-    },
-  });
+      overrides: {
+        containerOverrides: [
+          {
+            name: 'duel-fps',
+            environment: [
+              {
+                name: 'SERVER_ID',
+                value: serverId,
+              },
+            ],
+          },
+        ],
+      },
+    });
 
   private getTaskInfoCommand(taskId) {
     return new DescribeTasksCommand({
@@ -37,11 +51,12 @@ export default class AWSService {
 
   public async createNewServer(callback) {
     try {
-      var createdTaskResponse = await this.ecsClient.send(this.createServerCommand);
+      var serverId = uuid();
+      var createdTaskResponse = await this.ecsClient.send(this.createServerCommand(serverId));
       if (createdTaskResponse) {
-        var serverId = uuid();
         this.serverTasks.set(serverId, {
           id: serverId,
+          arn: createdTaskResponse.tasks[0].taskArn,
           spinUpSecs: 0,
           lastResponse: createdTaskResponse,
           publicIp: null,
@@ -87,6 +102,26 @@ export default class AWSService {
             }
           }
         }, 5000);
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  public async destroyServer(serverId: uuid) {
+    try {
+      var serverTask = this.serverTasks.get(serverId);
+      if (serverTask) {
+        var stopTaskResponse = await this.ecsClient.send(
+          new StopTaskCommand({
+            cluster: 'duel-fps',
+            task: serverTask.arn,
+          })
+        );
+
+        if (stopTaskResponse) {
+          console.log('Stopped server task: ', stopTaskResponse);
+        }
       }
     } catch (err) {
       console.log(err);

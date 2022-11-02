@@ -74,4 +74,13 @@ app.get('/getQueueStatus', (req, res) => {
   }
 });
 
+app.get('/endGame', (req, res) => {
+  try {
+    qController.endGame(req, res);
+  } catch (err) {
+    console.log(`end game request failed: ${err}`);
+    res.json(`end game request failed: ${err}`);
+  }
+});
+
 app.listen(process.env.PORT || port, () => console.log(`Matchmaking server listening on port ${process.env.PORT || port}`));

@@ -7,7 +7,7 @@ export default class QueueController {
   _awsService = new AWSService();
   players: Map<uuid, Player> = new Map();
   queue: uuid[] = [];
-  games: Game[] = [];
+  games: Map<uuid, Game> = new Map();
 
   startTimer() {
     setInterval(() => {
@@ -19,7 +19,7 @@ export default class QueueController {
     let player: Player = {
       id: uuid(),
       status: 'idle',
-      timeout: setTimeout(() => this.timeout(player), 300000),
+      timeout: setTimeout(() => this.timeout(player), 60000),
     };
 
     this.players.set(player.id, player);
@@ -36,6 +36,9 @@ export default class QueueController {
     });
 
     console.log(`player connected: ${player.id}`);
+
+    // Testing
+    this.addPlayerToQueue(player);
   }
 
   info(req, res) {
@@ -112,15 +115,17 @@ export default class QueueController {
   }
 
   getTimeUntilDisconnect(timeout) {
-    return Math.ceil((timeout._idleStart + timeout._idleTimeout - Date.now()) / 1000);
+    return Math.ceil((timeout._idleStart + timeout._idleTimeout) / 1000 - process.uptime());
   }
 
   resetTimeout(player) {
     clearTimeout(player.timeout);
-    player.timeout = setTimeout(() => this.timeout(player), 300000);
+    player.timeout = setTimeout(() => this.timeout(player), 60000);
   }
 
   timeout(player) {
+    this.removePlayerFromQueue(player);
+
     if (this.players.has(player.id)) {
       this.players.delete(player.id);
       console.log(`player timed out: ${player.id}`);
@@ -157,11 +162,10 @@ export default class QueueController {
   }
 
   addPlayerToQueue(player) {
-    var playerToAdd = this.queue.find((p) => p == player);
+    var playerToAdd = this.queue.find((p) => p == player.id);
 
     if (!playerToAdd) {
-      player.matchFound = false;
-      this.queue.push(player);
+      this.queue.push(player.id);
       return true;
     } else {
       return false;
@@ -266,11 +270,20 @@ export default class QueueController {
     try {
       if (this.queue.length >= 2) {
         console.log('starting all available matches');
+        console.log('queue: ', this.queue);
+        console.log('players map: ', this.players);
         this.queue.forEach((playerId, index) => {
+          console.log('playerId: ', playerId);
+          console.log('player: ', this.players.get(playerId));
           let player1 = this.players.get(playerId);
           let player2 = this.players.get(this.queue[index + 1]);
 
-          if (player1 && player2) {
+          if (
+            player1 &&
+            player2 &&
+            this.getTimeUntilDisconnect(player1.timeout) >= 50 &&
+            this.getTimeUntilDisconnect(player2.timeout) >= 50
+          ) {
             player1.status = 'match found';
             player2.status = 'match found';
             this.queue.splice(index, 2);
@@ -288,6 +301,8 @@ export default class QueueController {
                 status: 'running',
               };
 
+              this.games.set(newGame.id, newGame);
+
               console.log('Created game for players: ', newGame.playerIds);
               console.log('Game info: ', newGame);
 
@@ -303,5 +318,18 @@ export default class QueueController {
     } catch (err) {
       console.log('error starting matches', err);
     }
+  }
+
+  endGame(req, res) {
+    console.log('Game ', req.query.gameId, ' ended');
+    var game = this.games.get(req.query.gameId);
+    var stopTaskResponse = this._awsService.destroyServer(game.serverId);
+
+    res.json({
+      request: 'endGame',
+      success: true,
+      message: 'task stopped',
+      data: stopTaskResponse,
+    });
   }
 }
