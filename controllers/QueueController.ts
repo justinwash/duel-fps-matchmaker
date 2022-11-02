@@ -288,17 +288,21 @@ export default class QueueController {
             player2.status = 'match found';
             this.queue.splice(index, 2);
 
-            this._awsService.createNewServer((serverId) => {
+            var newGame: Game = {
+              id: uuid(),
+              playerIds: [player1.id, player2.id],
+              status: 'running',
+            };
+
+            this._awsService.createNewServer(newGame.id, (serverId) => {
               console.log('Created new server via _awsService: ', serverId);
               player1.status = 'server started';
               player2.status = 'server started';
 
-              var newGame: Game = {
-                id: uuid(),
-                playerIds: [player1.id, player2.id],
+              newGame = {
+                ...newGame,
                 serverId: serverId,
                 serverAddress: this._awsService.serverTasks.get(serverId).publicIp,
-                status: 'running',
               };
 
               this.games.set(newGame.id, newGame);

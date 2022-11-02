@@ -76,6 +76,7 @@ app.get('/getQueueStatus', (req, res) => {
 
 app.get('/endGame', (req, res) => {
   try {
+    console.log('/endGame requested: ', req);
     qController.endGame(req, res);
   } catch (err) {
     console.log(`end game request failed: ${err}`);

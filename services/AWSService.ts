@@ -9,7 +9,7 @@ export default class AWSService {
 
   public serverTasks: Map<uuid, any> = new Map();
 
-  private createServerCommand = (serverId) =>
+  private createServerCommand = (gameId, serverId) =>
     new RunTaskCommand({
       taskDefinition: 'duel-fps:11',
       cluster: 'duel-fps',
@@ -26,6 +26,10 @@ export default class AWSService {
           {
             name: 'duel-fps',
             environment: [
+              {
+                name: 'GAME_ID',
+                value: gameId,
+              },
               {
                 name: 'SERVER_ID',
                 value: serverId,
@@ -49,10 +53,10 @@ export default class AWSService {
     });
   }
 
-  public async createNewServer(callback) {
+  public async createNewServer(gameId, callback) {
     try {
       var serverId = uuid();
-      var createdTaskResponse = await this.ecsClient.send(this.createServerCommand(serverId));
+      var createdTaskResponse = await this.ecsClient.send(this.createServerCommand(gameId, serverId));
       if (createdTaskResponse) {
         this.serverTasks.set(serverId, {
           id: serverId,
