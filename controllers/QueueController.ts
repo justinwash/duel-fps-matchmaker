@@ -2,6 +2,7 @@ import Player from '../models/Player';
 import Game from '../models/Game';
 import { v4 as uuid } from 'uuid';
 import AWSService from '../services/AWSService';
+import { time } from 'console';
 
 export default class QueueController {
   _awsService = new AWSService();
@@ -36,9 +37,6 @@ export default class QueueController {
     });
 
     console.log(`player connected: ${player.id}`);
-
-    // Testing
-    this.addPlayerToQueue(player);
   }
 
   info(req, res) {
@@ -217,6 +215,7 @@ export default class QueueController {
 
   getQueueStatus(req, res) {
     var player = this.players.get(req.query.playerId);
+    if (player) this.resetTimeout(player);
 
     if (!player) {
       res.json({
@@ -240,9 +239,8 @@ export default class QueueController {
         },
       });
 
-      this.resetTimeout(player);
       return;
-    } else if (this.queue.indexOf(player) != -1) {
+    } else if (this.queue.indexOf(player.id) != -1) {
       res.json({
         request: 'getQueueStatus',
         success: true,
@@ -252,7 +250,6 @@ export default class QueueController {
         },
       });
 
-      this.resetTimeout(player);
       return;
     } else {
       res.json({
@@ -269,21 +266,21 @@ export default class QueueController {
   startAvailableMatches() {
     try {
       if (this.queue.length >= 2) {
-        console.log('starting all available matches');
         console.log('queue: ', this.queue);
-        console.log('players map: ', this.players);
         this.queue.forEach((playerId, index) => {
-          console.log('playerId: ', playerId);
-          console.log('player: ', this.players.get(playerId));
           let player1 = this.players.get(playerId);
           let player2 = this.players.get(this.queue[index + 1]);
 
-          if (
-            player1 &&
-            player2 &&
-            this.getTimeUntilDisconnect(player1.timeout) >= 50 &&
-            this.getTimeUntilDisconnect(player2.timeout) >= 50
-          ) {
+          if (player1 && player2) {
+            let timeout = false;
+            [player1, player2].forEach((p) => {
+              if (this.getTimeUntilDisconnect(p.timeout) < 50) {
+                timeout = true;
+                this.removePlayerFromQueue(p);
+              }
+            });
+            if (timeout) return;
+
             player1.status = 'match found';
             player2.status = 'match found';
             this.queue.splice(index, 2);
@@ -293,6 +290,8 @@ export default class QueueController {
               playerIds: [player1.id, player2.id],
               status: 'running',
             };
+
+            console.log('Starting a new game: ', newGame);
 
             this._awsService.createNewServer(newGame.id, (serverId) => {
               console.log('Created new server via _awsService: ', serverId);
